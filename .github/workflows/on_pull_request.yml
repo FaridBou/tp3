@@ -42,45 +42,43 @@ name: canary CI/CD
 
 #      name: CI/CD Pipeline
 
+
 on:
   push:
     branches:
       - main
 
 jobs:
-  build:
+  deploy_stable:
     runs-on: ubuntu-latest
 
     steps:
     - name: Checkout Repository
       uses: actions/checkout@v2
 
-    - name: Build Docker Image
+    - name: Set up Helm
+      uses: azure/setup-helm@v1
+
+    - name: Deploy Stable
       run: |
-        docker build -t ${{ secrets.DOCKER_USERNAME }}/voting-app:${{ github.sha }} .
-        echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u ${{ secrets.DOCKER_USERNAME }} --password-stdin
-        docker push ${{ secrets.DOCKER_USERNAME }}/voting-app:${{ github.sha }}
-
-  deploy_staging:
-    needs: build
-    runs-on: ubuntu-latest
-
-    steps:
-    - name: Deploy to Staging
-      run: kubectl apply -f kubernetes/staging-deployment.yaml
+        helm upgrade --install voting-app-stable voting-app-stable-chart \
+          --set ingress.enabled=true \
+          --set ingress.hosts[0].host=voting-app.20.74.48.7 \
+          --set replicaCount=3
 
   deploy_canary:
-    needs: build
     runs-on: ubuntu-latest
 
     steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v2
+
+    - name: Set up Helm
+      uses: azure/setup-helm@v1
+
     - name: Deploy Canary
-      run: kubectl apply -f kubernetes/canary-deployment.yaml
-
-  deploy_production:
-    needs: build
-    runs-on: ubuntu-latest
-
-    steps:
-    - name: Deploy to Production
-      run: kubectl apply -f kubernetes/production-deployment.yaml
+      run: |
+        helm upgrade --install voting-app-canary voting-app-canary-chart \
+          --set ingress.enabled=true \
+          --set ingress.hosts[0].host=voting-app-canary.20.74.48.7 \
+          --set replicaCount=3
