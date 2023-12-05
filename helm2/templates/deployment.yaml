@@ -46,7 +46,7 @@ metadata:
     nginx.ingress.kubernetes.io/rewrite-target: /
 spec:
   rules:
-  - host: {{ .Values.ingress.hosts[0].host }}
+  - host: {{ .Values.ingress.hosts[20.74.48.7].host }}
     http:
       paths:
         - pathType: Prefix
