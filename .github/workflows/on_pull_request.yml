@@ -1,4 +1,46 @@
-name: Terraform CI/CD
+name: canary CI/CD
+
+#on:
+#  push:
+#    branches:
+#      - main
+
+#jobs:
+#  terraform:
+#    runs-on: ubuntu-latest
+
+#    steps:
+#    - name: Checkout repository
+#      uses: actions/checkout@v3
+
+#    - name: Login to Azure
+#      run: az login --service-principal --tenant ${{ secrets.AZURE_TENANT_ID }} -u ${{ secrets.AZURE_USERNAME }} -p ${{ secrets.AZURE_PASSWORD }}
+
+#    - name: Set up Terraform
+#      uses: hashicorp/setup-terraform@v1
+
+#    - name: Setup Python
+#      uses: actions/setup-python@v3
+#      with:
+#        python-version: latest
+
+#    - name: Install Azure CLI
+#      run: pip install azure-cli
+
+#    - name: Terraform Init
+#      run: terraform init
+
+#    - name: Terraform Validate
+#      run: terraform validate
+
+#    - name: Terraform Plan
+#      run: terraform plan 
+
+#    - name: Terraform Apply
+#      if: github.event == 'push'
+#      run: terraform apply 
+
+#      name: CI/CD Pipeline
 
 on:
   push:
@@ -6,36 +48,39 @@ on:
       - main
 
 jobs:
-  terraform:
+  build:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v3
+    - name: Checkout Repository
+      uses: actions/checkout@v2
 
-    - name: Login to Azure
-      run: az login --service-principal --tenant ${{ secrets.AZURE_TENANT_ID }} -u ${{ secrets.AZURE_USERNAME }} -p ${{ secrets.AZURE_PASSWORD }}
+    - name: Build Docker Image
+      run: |
+        docker build -t ${{ secrets.DOCKER_USERNAME }}/voting-app:${{ github.sha }} .
+        echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u ${{ secrets.DOCKER_USERNAME }} --password-stdin
+        docker push ${{ secrets.DOCKER_USERNAME }}/voting-app:${{ github.sha }}
 
-    - name: Set up Terraform
-      uses: hashicorp/setup-terraform@v1
+  deploy_staging:
+    needs: build
+    runs-on: ubuntu-latest
 
-    - name: Setup Python
-      uses: actions/setup-python@v3
-      with:
-        python-version: latest
+    steps:
+    - name: Deploy to Staging
+      run: kubectl apply -f kubernetes/staging-deployment.yaml
 
-    - name: Install Azure CLI
-      run: pip install azure-cli
+  deploy_canary:
+    needs: build
+    runs-on: ubuntu-latest
 
-    - name: Terraform Init
-      run: terraform init
+    steps:
+    - name: Deploy Canary
+      run: kubectl apply -f kubernetes/canary-deployment.yaml
 
-    - name: Terraform Validate
-      run: terraform validate
+  deploy_production:
+    needs: build
+    runs-on: ubuntu-latest
 
-    - name: Terraform Plan
-      run: terraform plan 
-
-    - name: Terraform Apply
-      if: github.event == 'push'
-      run: terraform apply 
+    steps:
+    - name: Deploy to Production
+      run: kubectl apply -f kubernetes/production-deployment.yaml
